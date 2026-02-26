@@ -110,6 +110,84 @@ class Admin_Settings {
             'na_auto_section',
             [ 'key' => 'automation_enabled', 'type' => 'checkbox' ]
         );
+
+        /* ---------- Seção IA ---------- */
+        add_settings_section(
+            'na_ai_section',
+            __( 'Integração com IA (imagem)', 'newsletter-auto' ),
+            function () {
+                echo '<p>' . esc_html__( 'Configure o provedor de IA para gerar imagem destacada via API. Se desativado, o plugin usa o gerador local (GD).', 'newsletter-auto' ) . '</p>';
+            },
+            self::PAGE_SLUG
+        );
+
+        add_settings_field(
+            'ai_enabled',
+            __( 'Ativar geração com IA', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [ 'key' => 'ai_enabled', 'type' => 'checkbox' ]
+        );
+
+        add_settings_field(
+            'ai_provider',
+            __( 'Provedor', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [
+                'key'     => 'ai_provider',
+                'type'    => 'select',
+                'options' => [
+                    'openai' => __( 'OpenAI', 'newsletter-auto' ),
+                ],
+            ]
+        );
+
+        add_settings_field(
+            'ai_api_key',
+            __( 'API Key da IA', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [ 'key' => 'ai_api_key', 'type' => 'password' ]
+        );
+
+        add_settings_field(
+            'ai_image_model',
+            __( 'Modelo de imagem', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [ 'key' => 'ai_image_model', 'type' => 'text' ]
+        );
+
+        add_settings_field(
+            'ai_image_size',
+            __( 'Tamanho da imagem', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [
+                'key'     => 'ai_image_size',
+                'type'    => 'select',
+                'options' => [
+                    '1024x1024' => '1024x1024',
+                    '1536x1024' => '1536x1024',
+                    '1024x1536' => '1024x1536',
+                ],
+            ]
+        );
+
+        add_settings_field(
+            'ai_prompt_template',
+            __( 'Template do prompt', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [ 'key' => 'ai_prompt_template', 'type' => 'textarea' ]
+        );
     }
 
     /**
@@ -126,6 +204,12 @@ class Admin_Settings {
             'imap_email'         => '',
             'imap_password'      => '',
             'automation_enabled' => 0,
+            'ai_enabled'         => 0,
+            'ai_provider'        => 'openai',
+            'ai_api_key'         => '',
+            'ai_image_model'     => 'gpt-image-1',
+            'ai_image_size'      => '1536x1024',
+            'ai_prompt_template' => 'Create a modern editorial cover image for this newsletter. Title: "{title}". Summary: "{subtitle}". Use a clean layout, high contrast, no readable text in the artwork.',
         ];
     }
 
@@ -155,6 +239,11 @@ class Admin_Settings {
         $clean['imap_email']  = sanitize_email( $input['imap_email'] ?? '' );
 
         $clean['automation_enabled'] = ! empty( $input['automation_enabled'] ) ? 1 : 0;
+        $clean['ai_enabled']         = ! empty( $input['ai_enabled'] ) ? 1 : 0;
+        $clean['ai_provider']        = sanitize_key( $input['ai_provider'] ?? 'openai' );
+        $clean['ai_image_model']     = sanitize_text_field( $input['ai_image_model'] ?? 'gpt-image-1' );
+        $clean['ai_image_size']      = sanitize_text_field( $input['ai_image_size'] ?? '1536x1024' );
+        $clean['ai_prompt_template'] = sanitize_textarea_field( $input['ai_prompt_template'] ?? self::defaults()['ai_prompt_template'] );
 
         /* Senha: cifrar se foi alterada, manter a anterior se campo vazio. */
         $raw_password = $input['imap_password'] ?? '';
@@ -163,6 +252,14 @@ class Admin_Settings {
         } else {
             $current = self::get_settings();
             $clean['imap_password'] = $current['imap_password'];
+        }
+
+        $raw_ai_api_key = $input['ai_api_key'] ?? '';
+        if ( '' !== $raw_ai_api_key ) {
+            $clean['ai_api_key'] = self::encrypt( $raw_ai_api_key );
+        } else {
+            $current = self::get_settings();
+            $clean['ai_api_key'] = $current['ai_api_key'];
         }
 
         /* Agendar ou desagendar cron conforme automação. */
@@ -205,6 +302,31 @@ class Admin_Settings {
                 esc_attr( $name ),
                 $value ? esc_attr__( '••••••••  (salva)', 'newsletter-auto' ) : ''
             );
+            return;
+        }
+
+        if ( 'textarea' === $type ) {
+            printf(
+                '<textarea id="%1$s" name="%2$s" class="large-text" rows="4">%3$s</textarea>',
+                esc_attr( $key ),
+                esc_attr( $name ),
+                esc_textarea( (string) $value )
+            );
+            return;
+        }
+
+        if ( 'select' === $type ) {
+            $options = $args['options'] ?? [];
+            printf( '<select id="%1$s" name="%2$s">', esc_attr( $key ), esc_attr( $name ) );
+            foreach ( $options as $option_value => $label ) {
+                printf(
+                    '<option value="%1$s" %2$s>%3$s</option>',
+                    esc_attr( (string) $option_value ),
+                    selected( (string) $value, (string) $option_value, false ),
+                    esc_html( (string) $label )
+                );
+            }
+            echo '</select>';
             return;
         }
 
