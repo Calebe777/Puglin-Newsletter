@@ -62,7 +62,6 @@ class Admin_Settings {
             ]
         );
 
-        /* ---------- Seção IMAP ---------- */
         add_settings_section(
             'na_imap_section',
             __( 'Configuração IMAP', 'newsletter-auto' ),
@@ -73,11 +72,11 @@ class Admin_Settings {
         );
 
         $imap_fields = [
-            'imap_host'   => [ 'label' => __( 'Host IMAP', 'newsletter-auto' ), 'type' => 'text' ],
-            'imap_port'   => [ 'label' => __( 'Porta', 'newsletter-auto' ), 'type' => 'number' ],
-            'imap_ssl'    => [ 'label' => __( 'Usar SSL', 'newsletter-auto' ), 'type' => 'checkbox' ],
-            'imap_folder' => [ 'label' => __( 'Pasta', 'newsletter-auto' ), 'type' => 'text' ],
-            'imap_email'  => [ 'label' => __( 'Email', 'newsletter-auto' ), 'type' => 'email' ],
+            'imap_host'     => [ 'label' => __( 'Host IMAP', 'newsletter-auto' ), 'type' => 'text' ],
+            'imap_port'     => [ 'label' => __( 'Porta', 'newsletter-auto' ), 'type' => 'number' ],
+            'imap_ssl'      => [ 'label' => __( 'Usar SSL', 'newsletter-auto' ), 'type' => 'checkbox' ],
+            'imap_folder'   => [ 'label' => __( 'Pasta', 'newsletter-auto' ), 'type' => 'text' ],
+            'imap_email'    => [ 'label' => __( 'Email', 'newsletter-auto' ), 'type' => 'email' ],
             'imap_password' => [ 'label' => __( 'Senha / App Password', 'newsletter-auto' ), 'type' => 'password' ],
         ];
 
@@ -92,7 +91,6 @@ class Admin_Settings {
             );
         }
 
-        /* ---------- Seção Automação ---------- */
         add_settings_section(
             'na_auto_section',
             __( 'Automação', 'newsletter-auto' ),
@@ -111,33 +109,100 @@ class Admin_Settings {
             [ 'key' => 'automation_enabled', 'type' => 'checkbox' ]
         );
 
-        /* ---------- Seção Integrações (ENV) ---------- */
         add_settings_section(
-            'na_env_section',
-            __( 'Integrações e ENV', 'newsletter-auto' ),
+            'na_ai_section',
+            __( 'Integração com IA (imagem)', 'newsletter-auto' ),
             function () {
-                echo '<p>' . esc_html__( 'Preencha suas chaves diretamente no wp-admin. Se existir variável de ambiente no servidor, ela continua funcionando como fallback.', 'newsletter-auto' ) . '</p>';
+                echo '<p>' . esc_html__( 'Configure o provedor de IA para gerar imagem destacada via API. Se desativado, o plugin usa o gerador local (GD).', 'newsletter-auto' ) . '</p>';
             },
             self::PAGE_SLUG
         );
 
-        $env_fields = [
-            'image_api_key'         => [ 'label' => __( 'API Key para gerar imagem', 'newsletter-auto' ), 'type' => 'password' ],
-            'image_provider'        => [ 'label' => __( 'Provedor de imagem', 'newsletter-auto' ), 'type' => 'text' ],
-            'image_prompt_template' => [ 'label' => __( 'Template do prompt da imagem', 'newsletter-auto' ), 'type' => 'textarea' ],
-            'post_template'         => [ 'label' => __( 'Template do conteúdo do post', 'newsletter-auto' ), 'type' => 'textarea' ],
-        ];
+        add_settings_field(
+            'ai_enabled',
+            __( 'Ativar geração com IA', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [ 'key' => 'ai_enabled', 'type' => 'checkbox' ]
+        );
 
-        foreach ( $env_fields as $key => $field ) {
-            add_settings_field(
-                $key,
-                $field['label'],
-                [ $this, 'render_field' ],
-                self::PAGE_SLUG,
-                'na_env_section',
-                [ 'key' => $key, 'type' => $field['type'] ]
-            );
-        }
+        add_settings_field(
+            'ai_provider',
+            __( 'Provedor', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [
+                'key'     => 'ai_provider',
+                'type'    => 'select',
+                'options' => [
+                    'openai' => __( 'OpenAI', 'newsletter-auto' ),
+                ],
+            ]
+        );
+
+        add_settings_field(
+            'ai_api_key',
+            __( 'API Key da IA', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [ 'key' => 'ai_api_key', 'type' => 'password' ]
+        );
+
+        add_settings_field(
+            'ai_image_model',
+            __( 'Modelo de imagem', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [ 'key' => 'ai_image_model', 'type' => 'text' ]
+        );
+
+        add_settings_field(
+            'ai_image_size',
+            __( 'Tamanho da imagem', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [
+                'key'     => 'ai_image_size',
+                'type'    => 'select',
+                'options' => [
+                    '1024x1024' => '1024x1024',
+                    '1536x1024' => '1536x1024',
+                    '1024x1536' => '1024x1536',
+                ],
+            ]
+        );
+
+        add_settings_field(
+            'ai_prompt_template',
+            __( 'Template do prompt', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_ai_section',
+            [ 'key' => 'ai_prompt_template', 'type' => 'textarea' ]
+        );
+
+        add_settings_section(
+            'na_post_template_section',
+            __( 'Template do post', 'newsletter-auto' ),
+            function () {
+                echo '<p>' . esc_html__( 'Padronize o conteúdo dos posts gerados usando variáveis dinâmicas.', 'newsletter-auto' ) . '</p>';
+            },
+            self::PAGE_SLUG
+        );
+
+        add_settings_field(
+            'post_template',
+            __( 'Template do conteúdo do post', 'newsletter-auto' ),
+            [ $this, 'render_field' ],
+            self::PAGE_SLUG,
+            'na_post_template_section',
+            [ 'key' => 'post_template', 'type' => 'textarea' ]
+        );
     }
 
     /**
@@ -147,17 +212,20 @@ class Admin_Settings {
      */
     public static function defaults(): array {
         return [
-            'imap_host'          => 'imap.gmail.com',
-            'imap_port'          => 993,
-            'imap_ssl'           => 1,
-            'imap_folder'        => 'INBOX',
-            'imap_email'         => '',
-            'imap_password'      => '',
-            'automation_enabled' => 0,
-            'image_api_key'      => '',
-            'image_provider'     => 'openai',
-            'image_prompt_template' => 'Crie uma imagem editorial moderna para o título "{title}" com o contexto: "{subtitle}".',
-            'post_template'      => "<!-- wp:paragraph -->\n<p>{content}</p>\n<!-- /wp:paragraph -->",
+            'imap_host'           => 'imap.gmail.com',
+            'imap_port'           => 993,
+            'imap_ssl'            => 1,
+            'imap_folder'         => 'INBOX',
+            'imap_email'          => '',
+            'imap_password'       => '',
+            'automation_enabled'  => 0,
+            'ai_enabled'          => 0,
+            'ai_provider'         => 'openai',
+            'ai_api_key'          => '',
+            'ai_image_model'      => 'gpt-image-1',
+            'ai_image_size'       => '1536x1024',
+            'ai_prompt_template'  => 'Create a modern editorial cover image for this newsletter. Title: "{title}". Summary: "{subtitle}". Use a clean layout, high contrast, no readable text in the artwork.',
+            'post_template'       => "<!-- wp:paragraph -->\n<p>{content}</p>\n<!-- /wp:paragraph -->",
         ];
     }
 
@@ -185,13 +253,15 @@ class Admin_Settings {
         $clean['imap_ssl']    = ! empty( $input['imap_ssl'] ) ? 1 : 0;
         $clean['imap_folder'] = sanitize_text_field( $input['imap_folder'] ?? 'INBOX' );
         $clean['imap_email']  = sanitize_email( $input['imap_email'] ?? '' );
-        $clean['image_provider'] = sanitize_text_field( $input['image_provider'] ?? 'openai' );
-        $clean['image_prompt_template'] = wp_kses_post( $input['image_prompt_template'] ?? '' );
-        $clean['post_template'] = wp_kses_post( $input['post_template'] ?? '' );
 
         $clean['automation_enabled'] = ! empty( $input['automation_enabled'] ) ? 1 : 0;
+        $clean['ai_enabled']         = ! empty( $input['ai_enabled'] ) ? 1 : 0;
+        $clean['ai_provider']        = sanitize_key( $input['ai_provider'] ?? 'openai' );
+        $clean['ai_image_model']     = sanitize_text_field( $input['ai_image_model'] ?? 'gpt-image-1' );
+        $clean['ai_image_size']      = sanitize_text_field( $input['ai_image_size'] ?? '1536x1024' );
+        $clean['ai_prompt_template'] = sanitize_textarea_field( $input['ai_prompt_template'] ?? self::defaults()['ai_prompt_template'] );
+        $clean['post_template']      = wp_kses_post( $input['post_template'] ?? '' );
 
-        /* Senha: cifrar se foi alterada, manter a anterior se campo vazio. */
         $raw_password = $input['imap_password'] ?? '';
         if ( '' !== $raw_password ) {
             $clean['imap_password'] = self::encrypt( $raw_password );
@@ -200,15 +270,14 @@ class Admin_Settings {
             $clean['imap_password'] = $current['imap_password'];
         }
 
-        $raw_api_key = $input['image_api_key'] ?? '';
-        if ( '' !== $raw_api_key ) {
-            $clean['image_api_key'] = self::encrypt( $raw_api_key );
+        $raw_ai_api_key = $input['ai_api_key'] ?? '';
+        if ( '' !== $raw_ai_api_key ) {
+            $clean['ai_api_key'] = self::encrypt( $raw_ai_api_key );
         } else {
             $current = self::get_settings();
-            $clean['image_api_key'] = $current['image_api_key'];
+            $clean['ai_api_key'] = $current['ai_api_key'];
         }
 
-        /* Agendar ou desagendar cron conforme automação. */
         if ( $clean['automation_enabled'] ) {
             Cron::schedule();
         } else {
@@ -253,16 +322,30 @@ class Admin_Settings {
 
         if ( 'textarea' === $type ) {
             printf(
-                '<textarea id="%1$s" name="%2$s" rows="6" class="large-text code">%3$s</textarea>',
+                '<textarea id="%1$s" name="%2$s" class="large-text code" rows="6">%3$s</textarea>',
                 esc_attr( $key ),
                 esc_attr( $name ),
                 esc_textarea( (string) $value )
             );
 
-            if ( in_array( $key, [ 'image_prompt_template', 'post_template' ], true ) ) {
+            if ( in_array( $key, [ 'ai_prompt_template', 'post_template' ], true ) ) {
                 echo '<p class="description">' . esc_html__( 'Variáveis disponíveis: {title}, {subtitle}, {date}, {content}.', 'newsletter-auto' ) . '</p>';
             }
+            return;
+        }
 
+        if ( 'select' === $type ) {
+            $options = $args['options'] ?? [];
+            printf( '<select id="%1$s" name="%2$s">', esc_attr( $key ), esc_attr( $name ) );
+            foreach ( $options as $option_value => $label ) {
+                printf(
+                    '<option value="%1$s" %2$s>%3$s</option>',
+                    esc_attr( (string) $option_value ),
+                    selected( (string) $value, (string) $option_value, false ),
+                    esc_html( (string) $label )
+                );
+            }
+            echo '</select>';
             return;
         }
 
@@ -308,7 +391,6 @@ class Admin_Settings {
                 <p>
                     <?php
                     printf(
-                        /* translators: %s: data/hora da última execução */
                         esc_html__( 'Última execução: %s', 'newsletter-auto' ),
                         esc_html( $last_run )
                     );
@@ -326,7 +408,7 @@ class Admin_Settings {
 
             <h2><?php esc_html_e( 'Tutorial rápido: template do post', 'newsletter-auto' ); ?></h2>
             <ol>
-                <li><?php esc_html_e( 'Abra Newsletter Auto > Integrações e ENV.', 'newsletter-auto' ); ?></li>
+                <li><?php esc_html_e( 'Abra Newsletter Auto > Template do post.', 'newsletter-auto' ); ?></li>
                 <li><?php esc_html_e( 'No campo "Template do conteúdo do post", cole seu HTML/Gutenberg base.', 'newsletter-auto' ); ?></li>
                 <li><?php esc_html_e( 'Use variáveis como {title}, {subtitle}, {date} e {content} para manter o layout igual em todos os posts.', 'newsletter-auto' ); ?></li>
                 <li><?php esc_html_e( 'Salve e clique em "Executar agora" para validar o resultado.', 'newsletter-auto' ); ?></li>
@@ -338,7 +420,7 @@ class Admin_Settings {
     /**
      * Obtém valor de integração priorizando ENV e fallback no wp-admin.
      *
-     * @param string $env_key  Nome da variável de ambiente.
+     * @param string $env_key Nome da variável de ambiente.
      * @param string $option_key Chave salva nas opções do plugin.
      * @param bool   $encrypted Se o valor do banco está criptografado.
      * @return string
@@ -380,7 +462,6 @@ class Admin_Settings {
             self::OPTION_NAME,
             'newsletter_auto_run',
             sprintf(
-                /* translators: %d: número de posts criados */
                 __( 'Execução concluída. %d post(s) criado(s).', 'newsletter-auto' ),
                 (int) $count
             ),
@@ -393,10 +474,6 @@ class Admin_Settings {
         exit;
     }
 
-    /* ===========================================================
-     *  Criptografia de senha
-     * =========================================================== */
-
     /**
      * Cifra um texto usando AES-256-CBC.
      *
@@ -405,7 +482,7 @@ class Admin_Settings {
      */
     public static function encrypt( string $plain ): string {
         if ( ! function_exists( 'openssl_encrypt' ) ) {
-            return base64_encode( $plain ); // @codeCoverageIgnore
+            return base64_encode( $plain );
         }
         $key = substr( hash( 'sha256', AUTH_KEY ), 0, 32 );
         $iv  = substr( hash( 'sha256', SECURE_AUTH_KEY ), 0, 16 );
@@ -423,7 +500,7 @@ class Admin_Settings {
             return '';
         }
         if ( ! function_exists( 'openssl_decrypt' ) ) {
-            return base64_decode( $cipher ); // @codeCoverageIgnore
+            return base64_decode( $cipher );
         }
         $key = substr( hash( 'sha256', AUTH_KEY ), 0, 32 );
         $iv  = substr( hash( 'sha256', SECURE_AUTH_KEY ), 0, 16 );
