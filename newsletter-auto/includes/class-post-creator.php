@@ -138,8 +138,7 @@ class Post_Creator {
      * @return string
      */
     private function build_post_content( array $email_data ): string {
-        $settings = Admin_Settings::get_settings();
-        $template = (string) ( $settings['post_template'] ?? '' );
+        $template = Admin_Settings::get_env_or_option( 'NEWSLETTER_AUTO_POST_TEMPLATE', 'post_template' );
 
         if ( '' === trim( $template ) ) {
             return $email_data['body'];
