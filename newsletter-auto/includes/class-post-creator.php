@@ -105,7 +105,7 @@ class Post_Creator {
         $post_id = wp_insert_post( [
             'post_type'    => self::POST_TYPE,
             'post_title'   => $email_data['subject'],
-            'post_content' => $email_data['body'],
+            'post_content' => $this->build_post_content( $email_data ),
             'post_status'  => 'publish',
             'post_date'    => $this->parse_date( $email_data['date'] ),
             'meta_input'   => [
@@ -129,6 +129,33 @@ class Post_Creator {
         }
 
         return $post_id;
+    }
+
+    /**
+     * Monta conteúdo final do post usando template configurável.
+     *
+     * @param array{subject: string, body: string, date: string} $email_data Dados do email.
+     * @return string
+     */
+    private function build_post_content( array $email_data ): string {
+        $settings = Admin_Settings::get_settings();
+        $template = (string) ( $settings['post_template'] ?? '' );
+
+        if ( '' === trim( $template ) ) {
+            return $email_data['body'];
+        }
+
+        $plain_text = trim( wp_strip_all_tags( $email_data['body'] ) );
+        $subtitle   = mb_substr( $plain_text, 0, 150 );
+
+        $replace_map = [
+            '{title}'    => $email_data['subject'],
+            '{subtitle}' => $subtitle,
+            '{date}'     => $this->parse_date( $email_data['date'] ),
+            '{content}'  => $email_data['body'],
+        ];
+
+        return strtr( $template, $replace_map );
     }
 
     /**
