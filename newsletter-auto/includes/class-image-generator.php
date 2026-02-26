@@ -29,6 +29,13 @@ class Image_Generator {
      * @return int|false ID do attachment ou false.
      */
     public function generate_and_attach( string $title, string $subtitle, int $post_id ) {
+        $ai_file = $this->generate_with_ai( $title, $subtitle, $post_id );
+
+        if ( $ai_file ) {
+            $filename = basename( $ai_file );
+            return $this->insert_attachment( $ai_file, $filename, $post_id );
+        }
+
         if ( ! extension_loaded( 'gd' ) ) {
             return false;
         }
@@ -49,9 +56,7 @@ class Image_Generator {
             return false;
         }
 
-        $attachment_id = $this->insert_attachment( $filepath, $filename, $post_id );
-
-        return $attachment_id;
+        return $this->insert_attachment( $filepath, $filename, $post_id );
     }
 
     /**
@@ -255,6 +260,96 @@ class Image_Generator {
         }
 
         return false;
+    }
+
+    /**
+     * Gera imagem com IA, se configurado, e retorna caminho do arquivo baixado.
+     *
+     * @param string $title    Título.
+     * @param string $subtitle Subtítulo.
+     * @param int    $post_id  ID do post.
+     * @return string|false Caminho local do arquivo ou false.
+     */
+    private function generate_with_ai( string $title, string $subtitle, int $post_id ) {
+        $settings = Admin_Settings::get_settings();
+
+        if ( empty( $settings['ai_enabled'] ) ) {
+            return false;
+        }
+
+        $provider = $settings['ai_provider'] ?? 'openai';
+        if ( 'openai' !== $provider ) {
+            return false;
+        }
+
+        $cipher_key = $settings['ai_api_key'] ?? '';
+        $api_key    = Admin_Settings::decrypt( $cipher_key );
+        if ( '' === $api_key ) {
+            return false;
+        }
+
+        $model = $settings['ai_image_model'] ?? 'gpt-image-1';
+        $size  = $settings['ai_image_size'] ?? '1536x1024';
+
+        $prompt_template = $settings['ai_prompt_template'] ?? '';
+        if ( '' === $prompt_template ) {
+            $prompt_template = Admin_Settings::defaults()['ai_prompt_template'];
+        }
+
+        $prompt = str_replace(
+            [ '{title}', '{subtitle}' ],
+            [ $title, $subtitle ],
+            $prompt_template
+        );
+
+        $response = wp_remote_post(
+            'https://api.openai.com/v1/images/generations',
+            [
+                'timeout' => 60,
+                'headers' => [
+                    'Authorization' => 'Bearer ' . $api_key,
+                    'Content-Type'  => 'application/json',
+                ],
+                'body'    => wp_json_encode(
+                    [
+                        'model'  => $model,
+                        'prompt' => $prompt,
+                        'size'   => $size,
+                    ]
+                ),
+            ]
+        );
+
+        if ( is_wp_error( $response ) ) {
+            return false;
+        }
+
+        $status_code = wp_remote_retrieve_response_code( $response );
+        if ( 200 !== (int) $status_code ) {
+            return false;
+        }
+
+        $body = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+
+        if ( ! is_array( $body ) || empty( $body['data'][0]['b64_json'] ) ) {
+            return false;
+        }
+
+        $binary = base64_decode( (string) $body['data'][0]['b64_json'] );
+        if ( false === $binary ) {
+            return false;
+        }
+
+        $upload_dir = wp_upload_dir();
+        $filename   = 'newsletter-ai-' . $post_id . '-' . time() . '.png';
+        $filepath   = trailingslashit( $upload_dir['path'] ) . $filename;
+
+        $saved = file_put_contents( $filepath, $binary );
+        if ( false === $saved || ! file_exists( $filepath ) ) {
+            return false;
+        }
+
+        return $filepath;
     }
 
     /**
