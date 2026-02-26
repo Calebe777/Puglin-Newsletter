@@ -110,6 +110,34 @@ class Admin_Settings {
             'na_auto_section',
             [ 'key' => 'automation_enabled', 'type' => 'checkbox' ]
         );
+
+        /* ---------- Seção Integrações (ENV) ---------- */
+        add_settings_section(
+            'na_env_section',
+            __( 'Integrações e ENV', 'newsletter-auto' ),
+            function () {
+                echo '<p>' . esc_html__( 'Preencha suas chaves diretamente no wp-admin. Se existir variável de ambiente no servidor, ela continua funcionando como fallback.', 'newsletter-auto' ) . '</p>';
+            },
+            self::PAGE_SLUG
+        );
+
+        $env_fields = [
+            'image_api_key'         => [ 'label' => __( 'API Key para gerar imagem', 'newsletter-auto' ), 'type' => 'password' ],
+            'image_provider'        => [ 'label' => __( 'Provedor de imagem', 'newsletter-auto' ), 'type' => 'text' ],
+            'image_prompt_template' => [ 'label' => __( 'Template do prompt da imagem', 'newsletter-auto' ), 'type' => 'textarea' ],
+            'post_template'         => [ 'label' => __( 'Template do conteúdo do post', 'newsletter-auto' ), 'type' => 'textarea' ],
+        ];
+
+        foreach ( $env_fields as $key => $field ) {
+            add_settings_field(
+                $key,
+                $field['label'],
+                [ $this, 'render_field' ],
+                self::PAGE_SLUG,
+                'na_env_section',
+                [ 'key' => $key, 'type' => $field['type'] ]
+            );
+        }
     }
 
     /**
@@ -126,6 +154,10 @@ class Admin_Settings {
             'imap_email'         => '',
             'imap_password'      => '',
             'automation_enabled' => 0,
+            'image_api_key'      => '',
+            'image_provider'     => 'openai',
+            'image_prompt_template' => 'Crie uma imagem editorial moderna para o título "{title}" com o contexto: "{subtitle}".',
+            'post_template'      => "<!-- wp:paragraph -->\n<p>{content}</p>\n<!-- /wp:paragraph -->",
         ];
     }
 
@@ -153,6 +185,9 @@ class Admin_Settings {
         $clean['imap_ssl']    = ! empty( $input['imap_ssl'] ) ? 1 : 0;
         $clean['imap_folder'] = sanitize_text_field( $input['imap_folder'] ?? 'INBOX' );
         $clean['imap_email']  = sanitize_email( $input['imap_email'] ?? '' );
+        $clean['image_provider'] = sanitize_text_field( $input['image_provider'] ?? 'openai' );
+        $clean['image_prompt_template'] = wp_kses_post( $input['image_prompt_template'] ?? '' );
+        $clean['post_template'] = wp_kses_post( $input['post_template'] ?? '' );
 
         $clean['automation_enabled'] = ! empty( $input['automation_enabled'] ) ? 1 : 0;
 
@@ -163,6 +198,14 @@ class Admin_Settings {
         } else {
             $current = self::get_settings();
             $clean['imap_password'] = $current['imap_password'];
+        }
+
+        $raw_api_key = $input['image_api_key'] ?? '';
+        if ( '' !== $raw_api_key ) {
+            $clean['image_api_key'] = self::encrypt( $raw_api_key );
+        } else {
+            $current = self::get_settings();
+            $clean['image_api_key'] = $current['image_api_key'];
         }
 
         /* Agendar ou desagendar cron conforme automação. */
@@ -205,6 +248,21 @@ class Admin_Settings {
                 esc_attr( $name ),
                 $value ? esc_attr__( '••••••••  (salva)', 'newsletter-auto' ) : ''
             );
+            return;
+        }
+
+        if ( 'textarea' === $type ) {
+            printf(
+                '<textarea id="%1$s" name="%2$s" rows="6" class="large-text code">%3$s</textarea>',
+                esc_attr( $key ),
+                esc_attr( $name ),
+                esc_textarea( (string) $value )
+            );
+
+            if ( in_array( $key, [ 'image_prompt_template', 'post_template' ], true ) ) {
+                echo '<p class="description">' . esc_html__( 'Variáveis disponíveis: {title}, {subtitle}, {date}, {content}.', 'newsletter-auto' ) . '</p>';
+            }
+
             return;
         }
 
@@ -263,8 +321,42 @@ class Admin_Settings {
                 <input type="hidden" name="newsletter_auto_run_now" value="1" />
                 <?php submit_button( __( 'Executar agora', 'newsletter-auto' ), 'secondary', 'run-now-btn', false ); ?>
             </form>
+
+            <hr />
+
+            <h2><?php esc_html_e( 'Tutorial rápido: template do post', 'newsletter-auto' ); ?></h2>
+            <ol>
+                <li><?php esc_html_e( 'Abra Newsletter Auto > Integrações e ENV.', 'newsletter-auto' ); ?></li>
+                <li><?php esc_html_e( 'No campo "Template do conteúdo do post", cole seu HTML/Gutenberg base.', 'newsletter-auto' ); ?></li>
+                <li><?php esc_html_e( 'Use variáveis como {title}, {subtitle}, {date} e {content} para manter o layout igual em todos os posts.', 'newsletter-auto' ); ?></li>
+                <li><?php esc_html_e( 'Salve e clique em "Executar agora" para validar o resultado.', 'newsletter-auto' ); ?></li>
+            </ol>
         </div>
         <?php
+    }
+
+    /**
+     * Obtém valor de integração priorizando ENV e fallback no wp-admin.
+     *
+     * @param string $env_key  Nome da variável de ambiente.
+     * @param string $option_key Chave salva nas opções do plugin.
+     * @param bool   $encrypted Se o valor do banco está criptografado.
+     * @return string
+     */
+    public static function get_env_or_option( string $env_key, string $option_key, bool $encrypted = false ): string {
+        $env_value = getenv( $env_key );
+        if ( false !== $env_value && '' !== trim( (string) $env_value ) ) {
+            return (string) $env_value;
+        }
+
+        $settings = self::get_settings();
+        $value    = (string) ( $settings[ $option_key ] ?? '' );
+
+        if ( $encrypted ) {
+            return self::decrypt( $value );
+        }
+
+        return $value;
     }
 
     /**
